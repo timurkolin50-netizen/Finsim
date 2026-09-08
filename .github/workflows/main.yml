@@ -10,37 +10,199 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    permissions:
-      contents: write
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v3
 
-      - name: Install Android SDK packages
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Create complete Android project and build APK
+        shell: bash
         run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          set -e
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.7'
+          rm -rf app build .gradle
 
-      - name: Build debug APK
-        run: gradle assembleDebug --stacktrace --no-daemon
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: FinSimClone-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+
+          rootProject.name = "FinSimClone"
+          include(":app")
+          EOF
+
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.6.0' apply false
+          }
+          EOF
+
+          cat > gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          android.enableJetifier=true
+          EOF
+
+          mkdir -p app/src/main/java/com/finsim/clone
+          mkdir -p app/src/main/res/values
+
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'com.finsim.clone'
+              compileSdk 34
+
+              defaultConfig {
+                  applicationId 'com.finsim.clone'
+                  minSdk 24
+                  targetSdk 34
+                  versionCode 1
+                  versionName '1.0'
+              }
+          }
+          EOF
+
+          cat > app/src/main/res/values/styles.xml <<'EOF'
+          <resources>
+              <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
+                  <item name="android:fontFamily">sans</item>
+                  <item name="android:colorAccent">#00D4FF</item>
+                  <item name="android:statusBarColor">#0D1117</item>
+                  <item name="android:navigationBarColor">#0D1117</item>
+              </style>
+          </resources>
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application
+                  android:label="FinSim Clone"
+                  android:theme="@style/AppTheme"
+                  android:allowBackup="true"
+                  android:usesCleartextTraffic="false">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:screenOrientation="portrait">
+
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/java/com/finsim/clone/MainActivity.java <<'EOF'
+          package com.finsim.clone;
+
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.graphics.Color;
+          import android.graphics.Typeface;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.widget.Button;
+          import android.widget.LinearLayout;
+          import android.widget.TextView;
+          import java.util.Random;
+
+          public class MainActivity extends Activity {
+
+              private double cash = 10000.0;
+              private double price = 100.0;
+              private int stocks = 0;
+              private int sec = 0;
+              private final Random random = new Random();
+
+              private TextView cashText;
+              private TextView priceText;
+              private TextView stocksText;
+              private TextView secText;
+              private TextView newsText;
+
+              private int dp(int value) {
+                  return (int) (value * getResources().getDisplayMetrics().density);
+              }
+
+              private TextView label(String text, int size, int color) {
+                  TextView view = new TextView(this);
+                  view.setText(text);
+                  view.setTextSize(size);
+                  view.setTextColor(color);
+                  view.setPadding(dp(12), dp(8), dp(12), dp(8));
+                  return view;
+              }
+
+              private Button button(String text, int color) {
+                  Button button = new Button(this);
+                  button.setText(text);
+                  button.setTextColor(Color.WHITE);
+                  button.setTextSize(15);
+                  button.setAllCaps(false);
+                  button.setBackgroundColor(color);
+
+                  LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                      LinearLayout.LayoutParams.MATCH_PARENT,
+                      LinearLayout.LayoutParams.WRAP_CONTENT
+                  );
+
+                  params.setMargins(dp(10), dp(6), dp(10), dp(6));
+                  button.setLayoutParams(params);
+                  return button;
+              }
+
+              @Override
+              public void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  LinearLayout root = new LinearLayout(this);
+                  root.setOrientation(LinearLayout.VERTICAL);
+                  root.setPadding(dp(12), dp(18), dp(12), dp(12));
+                  root.setBackgroundColor(Color.rgb(13, 17, 23));
+
+                  TextView title = label("💹 FinSim Clone", 28, Color.rgb(0, 212, 255));
+                  title.setGravity(Gravity.CENTER);
+                  title.setTypeface(null, Typeface.BOLD);
+                  root.addView(title);
+
+                  TextView subtitle = label(
+                      "Торгуй акциями. Манипулируй рынком. Не попадись SEC.",
+                      14,
+                      Color.LTGRAY
+                  );
+                  subtitle.setGravity(Gravity.CENTER);
+                  root.addView(subtitle);
+
+                  cashText = label("", 19, Color.WHITE);
+                  priceText = label("", 22, Color.rgb(46, 204, 113));
+                  stocksText = label("", 16, Color.LTGRAY);
+                  secText = label("", 16, Color.rgb(241, 196, 15));
+                  newsText = label("", 14, Color
