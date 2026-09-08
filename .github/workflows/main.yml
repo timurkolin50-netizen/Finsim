@@ -2,12 +2,14 @@ name: Build FinSim Clone APK
 
 on:
   push:
-    branches: [ main ]
-  workflow_dispatch: {}
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     permissions:
       contents: write
 
@@ -24,12 +26,12 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install required SDK packages
+      - name: Install Android SDK packages
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
+          yes | sdkmanager --licenses || true
           sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
-      - name: Set up Gradle 8.7
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
@@ -37,21 +39,8 @@ jobs:
       - name: Build debug APK
         run: gradle assembleDebug --stacktrace --no-daemon
 
-      - name: Upload APK as build artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: FinSimClone-debug-apk
           path: app/build/outputs/apk/debug/*.apk
-
-      - name: Publish APK to GitHub Release (direct download, no zip)
-        if: github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: build-${{ github.run_number }}
-          name: FinSim Clone — сборка №${{ github.run_number }}
-          body: |
-            Автоматическая сборка APK из main.yml.
-            Скачайте .apk из раздела Assets ниже и установите на телефон.
-          files: app/build/outputs/apk/debug/*.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
