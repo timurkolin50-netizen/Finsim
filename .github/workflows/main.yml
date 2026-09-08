@@ -1,29 +1,26 @@
-name: Build MarketForge APK
+name: Build Android APK
 
 on:
   push:
     branches:
       - main
       - master
-
   pull_request:
-
   workflow_dispatch:
 
 jobs:
   build:
-    name: Build Android APK
     runs-on: ubuntu-latest
 
     permissions:
       contents: read
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -32,26 +29,20 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android SDK 35
+      - name: Install Android SDK
         run: |
           sdkmanager "platform-tools"
           sdkmanager "platforms;android-35"
           sdkmanager "build-tools;35.0.0"
 
-      - name: Make Gradle executable
-        run: chmod +x ./gradlew
-
-      - name: Generate game content
+      - name: Generate content pack
         run: |
           python3 tools/generate_content_pack.py
 
-      - name: Build debug APK
-        run: ./gradlew --no-daemon --stacktrace assembleDebug
-
-      - name: Verify APK
+      - name: Build APK
         run: |
-          test -f app/build/outputs/apk/debug/app-debug.apk
-          ls -lh app/build/outputs/apk/debug/app-debug.apk
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -59,41 +50,3 @@ jobs:
           name: MarketForge-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-          retention-days: 14
-      - name: Собрать APK
-        shell: bash
-        run: |
-          cd "$PROJECT_DIR"
-
-          echo "Сборка из:"
-          pwd
-
-          echo ""
-          echo "Запускаем Gradle..."
-
-          gradle assembleDebug --no-daemon
-
-      - name: Проверить APK
-        shell: bash
-        run: |
-          APK=$(find "$PROJECT_DIR/app/build/outputs/apk/debug" \
-            -type f \
-            -name "*.apk" \
-            | head -n 1)
-
-          if [ -z "$APK" ]; then
-            echo "ОШИБКА: APK не найден"
-            exit 1
-          fi
-
-          echo "APK найден:"
-          ls -lh "$APK"
-
-          echo "APK=$APK" >> "$GITHUB_ENV"
-
-      - name: Загрузить APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: MarketForge-APK
-          path: ${{ env.APK }}
-          retention-days: 30
